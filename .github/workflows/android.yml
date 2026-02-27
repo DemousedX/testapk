@@ -33,33 +33,36 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android packages into system SDK
+      - name: Accept Android licenses (do not fail on broken pipe)
+        shell: bash
         run: |
-          set -euxo pipefail
-          yes | sdkmanager --licenses
+          set +e
+          sdkmanager --licenses <<<'y'
+          exit 0
+
+      - name: Install Android packages into system SDK
+        shell: bash
+        run: |
+          set -e
           sdkmanager --install \
             "platform-tools" \
             "platforms;android-34" \
             "build-tools;34.0.0"
-
           echo "SYSTEM ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
           ls -la "$ANDROID_SDK_ROOT/build-tools/34.0.0" || true
           test -f "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl"
 
       - name: Mirror system SDK into Buildozer expected path (fix AIDL)
+        shell: bash
         run: |
-          set -euxo pipefail
+          set -e
           BUILDOZER_SDK="$HOME/.buildozer/android/platform/android-sdk"
           mkdir -p "$BUILDOZER_SDK"
-
-          # Copy only what Buildozer/p4a typically needs
           rsync -a "$ANDROID_SDK_ROOT/build-tools" "$BUILDOZER_SDK/"
           rsync -a "$ANDROID_SDK_ROOT/platform-tools" "$BUILDOZER_SDK/"
           rsync -a "$ANDROID_SDK_ROOT/platforms" "$BUILDOZER_SDK/"
-
           ls -la "$BUILDOZER_SDK/build-tools/34.0.0" || true
           test -f "$BUILDOZER_SDK/build-tools/34.0.0/aidl"
-
           echo "$BUILDOZER_SDK/build-tools/34.0.0" >> $GITHUB_PATH
 
       - name: Install Buildozer
@@ -72,8 +75,9 @@ jobs:
           ANDROIDSDK: /home/runner/.buildozer/android/platform/android-sdk
           ANDROID_SDK_ROOT: /home/runner/.buildozer/android/platform/android-sdk
           ANDROID_HOME: /home/runner/.buildozer/android/platform/android-sdk
+        shell: bash
         run: |
-          set -euxo pipefail
+          set -e
           which aidl || true
           aidl --version || true
           buildozer -v android debug
