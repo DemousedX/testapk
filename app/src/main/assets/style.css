@@ -26,7 +26,10 @@ html, body {
   background: var(--bg);
   font-family: 'Orbitron', monospace;
   touch-action: none;
+  overscroll-behavior: none;
 }
+
+body { touch-action: manipulation; }
 
 #app {
   position: relative;
