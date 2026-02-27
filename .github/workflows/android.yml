@@ -22,18 +22,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git zip unzip \
+            git zip unzip rsync \
             openjdk-17-jdk \
             build-essential ccache \
             libffi-dev libssl-dev \
             libsqlite3-dev zlib1g-dev \
-            python3-dev \
-            rsync
+            python3-dev
 
-      - name: Setup Android SDK
+      - name: Setup Android SDK (cmdline-tools)
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android licenses (do not fail on broken pipe)
+      - name: Accept Android licenses (don’t fail on weird exit codes)
         shell: bash
         run: |
           set +e
@@ -43,27 +42,43 @@ jobs:
       - name: Install Android packages into system SDK
         shell: bash
         run: |
-          set -e
+          set -euxo pipefail
           sdkmanager --install \
             "platform-tools" \
             "platforms;android-34" \
             "build-tools;34.0.0"
+
           echo "SYSTEM ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" || true
           ls -la "$ANDROID_SDK_ROOT/build-tools/34.0.0" || true
           test -f "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl"
 
-      - name: Mirror system SDK into Buildozer expected path (fix AIDL)
+      - name: Prepare Buildozer SDK path (add legacy tools/bin/sdkmanager)
         shell: bash
         run: |
-          set -e
+          set -euxo pipefail
+
           BUILDOZER_SDK="$HOME/.buildozer/android/platform/android-sdk"
           mkdir -p "$BUILDOZER_SDK"
-          rsync -a "$ANDROID_SDK_ROOT/build-tools" "$BUILDOZER_SDK/"
+
+          # Put needed folders where buildozer expects them
           rsync -a "$ANDROID_SDK_ROOT/platform-tools" "$BUILDOZER_SDK/"
-          rsync -a "$ANDROID_SDK_ROOT/platforms" "$BUILDOZER_SDK/"
-          ls -la "$BUILDOZER_SDK/build-tools/34.0.0" || true
-          test -f "$BUILDOZER_SDK/build-tools/34.0.0/aidl"
+          rsync -a "$ANDROID_SDK_ROOT/platforms"      "$BUILDOZER_SDK/"
+          rsync -a "$ANDROID_SDK_ROOT/build-tools"    "$BUILDOZER_SDK/"
+
+          # Buildozer expects legacy path: tools/bin/sdkmanager
+          mkdir -p "$BUILDOZER_SDK/tools/bin"
+          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "$BUILDOZER_SDK/tools/bin/sdkmanager"
+          ln -sf "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" "$BUILDOZER_SDK/tools/bin/avdmanager" || true
+
+          # Also ensure aidl is reachable via PATH
           echo "$BUILDOZER_SDK/build-tools/34.0.0" >> $GITHUB_PATH
+          echo "$BUILDOZER_SDK/tools/bin" >> $GITHUB_PATH
+
+          # Sanity checks
+          ls -la "$BUILDOZER_SDK/tools/bin" || true
+          "$BUILDOZER_SDK/tools/bin/sdkmanager" --version
+          test -f "$BUILDOZER_SDK/build-tools/34.0.0/aidl"
 
       - name: Install Buildozer
         run: |
@@ -77,7 +92,8 @@ jobs:
           ANDROID_HOME: /home/runner/.buildozer/android/platform/android-sdk
         shell: bash
         run: |
-          set -e
+          set -euxo pipefail
+          which sdkmanager || true
           which aidl || true
           aidl --version || true
           buildozer -v android debug
