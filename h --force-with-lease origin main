@@ -1,0 +1,13 @@
+* [33m785078f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m New Game
+[31m|[m * [33m14387ae[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Update android.yml
+[31m|[m[31m/[m  
+* [33m8dc0d1a[m switch to offline WebView gradle build
+* [33m190167c[m switch to offline WebView gradle build
+* [33ma8ec4d3[m chore: ignore gradle/build outputs
+* [33m77b5ae9[m init offline webview clicker
+* [33m528c9eb[m resolve workflow conflict
+* [33m1943f29[m Update buildozer.spec
+* [33ma13f76f[m Update android.yml
+* [33m90ac41d[m Update android.yml
+* [33maf7d524[m Update android.yml
+* [33mb34c854[m Update android.yml
