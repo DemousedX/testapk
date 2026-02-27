@@ -27,28 +27,39 @@ jobs:
             build-essential ccache \
             libffi-dev libssl-dev \
             libsqlite3-dev zlib1g-dev \
-            python3-dev
+            python3-dev \
+            rsync
 
-      - name: Setup Android SDK (gives us sdkmanager)
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android packages into Buildozer SDK path (fix AIDL)
+      - name: Install Android packages into system SDK
         run: |
-          BUILDOZER_SDK="$HOME/.buildozer/android/platform/android-sdk"
-          mkdir -p "$BUILDOZER_SDK"
-
-          # accept licenses for sdkmanager
+          set -euxo pipefail
           yes | sdkmanager --licenses
-
-          # install packages into the EXACT sdk root buildozer searches
-          sdkmanager --sdk_root="$BUILDOZER_SDK" --install \
+          sdkmanager --install \
             "platform-tools" \
             "platforms;android-34" \
             "build-tools;34.0.0"
 
-          echo "Installed into: $BUILDOZER_SDK"
+          echo "SYSTEM ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls -la "$ANDROID_SDK_ROOT/build-tools/34.0.0" || true
+          test -f "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl"
+
+      - name: Mirror system SDK into Buildozer expected path (fix AIDL)
+        run: |
+          set -euxo pipefail
+          BUILDOZER_SDK="$HOME/.buildozer/android/platform/android-sdk"
+          mkdir -p "$BUILDOZER_SDK"
+
+          # Copy only what Buildozer/p4a typically needs
+          rsync -a "$ANDROID_SDK_ROOT/build-tools" "$BUILDOZER_SDK/"
+          rsync -a "$ANDROID_SDK_ROOT/platform-tools" "$BUILDOZER_SDK/"
+          rsync -a "$ANDROID_SDK_ROOT/platforms" "$BUILDOZER_SDK/"
+
           ls -la "$BUILDOZER_SDK/build-tools/34.0.0" || true
           test -f "$BUILDOZER_SDK/build-tools/34.0.0/aidl"
+
           echo "$BUILDOZER_SDK/build-tools/34.0.0" >> $GITHUB_PATH
 
       - name: Install Buildozer
@@ -58,11 +69,11 @@ jobs:
 
       - name: Build debug APK
         env:
-          # force p4a/buildozer to look here
           ANDROIDSDK: /home/runner/.buildozer/android/platform/android-sdk
           ANDROID_SDK_ROOT: /home/runner/.buildozer/android/platform/android-sdk
           ANDROID_HOME: /home/runner/.buildozer/android/platform/android-sdk
         run: |
+          set -euxo pipefail
           which aidl || true
           aidl --version || true
           buildozer -v android debug
