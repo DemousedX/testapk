@@ -1,82 +1,138 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="uk">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>Clicker</title>
-  <link rel="stylesheet" href="style.css"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <title>NITRO RUSH</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="bg">
-    <div class="grain"></div>
-    <div class="vignette"></div>
+  <div id="app">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div id="hud-left">
+        <div id="score-label">РАХУНОК</div>
+        <div id="score-display">0</div>
+        <div id="record-hud">🏆 <span id="record-hud-val">0</span></div>
+      </div>
+      <div id="hud-right">
+        <div id="coins-display">🪙 0</div>
+        <div id="xp-multiplier" class="hidden">⚡ 2X XP</div>
+      </div>
+    </div>
+
+    <!-- Rival Danger Bar -->
+    <div id="rival-bar-container" class="hidden">
+      <div id="rival-bar-inner">
+        <span id="rival-bar-label">СУПЕРНИК НАБЛИЖАЄТЬСЯ</span>
+        <div id="rival-bar-track">
+          <div id="rival-bar-fill"></div>
+          <div id="rival-icon">🏎</div>
+          <div id="player-icon">🚗</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MENU -->
+    <div id="menu-screen" class="screen">
+      <div class="menu-content">
+        <div class="logo-wrap">
+          <div class="logo-sub">НЕСКІНЧЕННА ГОНКА</div>
+          <div class="logo-text">NITRO</div>
+          <div class="logo-text accent">RUSH</div>
+          <div class="logo-glow-layer">NITRO<br>RUSH</div>
+        </div>
+        <div class="record-panel">
+          <div class="record-item">
+            <div class="rp-label">РЕКОРД</div>
+            <div class="rp-value" id="menu-record">0</div>
+          </div>
+          <div class="rp-divider"></div>
+          <div class="record-item">
+            <div class="rp-label">МОНЕТИ</div>
+            <div class="rp-value coin-val" id="menu-coins">0</div>
+          </div>
+        </div>
+        <button id="play-btn" class="btn-primary">▶ СТАРТ</button>
+        <button id="shop-btn" class="btn-secondary">🛒 МАГАЗИН</button>
+        <div class="controls-hint">← ТАП ДЛЯ РУХУ →</div>
+      </div>
+    </div>
+
+    <!-- SHOP -->
+    <div id="shop-screen" class="screen hidden">
+      <div class="shop-wrap">
+        <div class="shop-header">
+          <button id="shop-back" class="btn-back">← НАЗАД</button>
+          <div class="shop-title">МАГАЗИН</div>
+          <div id="shop-coins-display">🪙 <span id="shop-coin-count">0</span></div>
+        </div>
+        <div class="shop-subtitle">Буст активний на ОДИН забіг</div>
+        <div class="shop-items">
+          <div class="shop-item">
+            <div class="shop-item-icon">⚡</div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">2× XP БУСТ</div>
+              <div class="shop-item-desc">Подвійний досвід протягом усього забігу</div>
+            </div>
+            <button class="shop-buy-btn" id="buy-xp" data-cost="20" data-key="xp2x">20 🪙</button>
+          </div>
+          <div class="shop-item">
+            <div class="shop-item-icon">🛡️</div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">ЩИТ</div>
+              <div class="shop-item-desc">Захищає від одного зіткнення</div>
+            </div>
+            <button class="shop-buy-btn" id="buy-shield" data-cost="30" data-key="shield">30 🪙</button>
+          </div>
+          <div class="shop-item">
+            <div class="shop-item-icon">🧲</div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">МАГНІТ</div>
+              <div class="shop-item-desc">Автоматично притягує монети</div>
+            </div>
+            <button class="shop-buy-btn" id="buy-magnet" data-cost="25" data-key="magnet">25 🪙</button>
+          </div>
+        </div>
+        <div class="active-boosts-section">
+          <div class="active-boosts-label">АКТИВНІ НА НАСТУПНИЙ ЗАБІГ:</div>
+          <div id="active-boosts-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="gameover-screen" class="screen hidden">
+      <div class="go-content">
+        <div class="go-icon">💥</div>
+        <div class="go-title">ОБІГНАЛИ!</div>
+        <div class="go-stats">
+          <div class="go-row">
+            <span class="go-label">РАХУНОК</span>
+            <span class="go-value" id="final-score">0</span>
+          </div>
+          <div class="go-row">
+            <span class="go-label">РЕКОРД</span>
+            <span class="go-value highlight-gold" id="final-record">0</span>
+          </div>
+          <div class="go-row">
+            <span class="go-label">МОНЕТИ</span>
+            <span class="go-value highlight-coin" id="final-coins">0</span>
+          </div>
+          <div class="go-row">
+            <span class="go-label">XP ОТРИМАНО</span>
+            <span class="go-value highlight-green" id="final-xp">0</span>
+          </div>
+        </div>
+        <div id="new-record-badge" class="hidden">🏆 НОВИЙ РЕКОРД!</div>
+        <button id="restart-btn" class="btn-primary">🔁 ЗНОВУ</button>
+        <button id="menu-btn" class="btn-secondary">← МЕНЮ</button>
+      </div>
+    </div>
   </div>
-
-  <header class="topbar">
-    <div class="stat">
-      <div class="label">Сила</div>
-      <div id="power" class="value">1</div>
-    </div>
-    <div class="stat">
-      <div class="label">Комбо</div>
-      <div id="combo" class="value">x1</div>
-    </div>
-    <button id="settingsBtn" class="iconBtn" aria-label="Налаштування">⚙️</button>
-  </header>
-
-  <main class="wrap">
-    <div class="scoreBlock">
-      <div class="scoreLabel">Твої монети</div>
-      <div id="score" class="score">0</div>
-      <div id="rate" class="rate">+0 / сек</div>
-    </div>
-
-    <button id="tapBtn" class="tapBtn">
-      <div class="orb">
-        <div class="orbGlow"></div>
-        <div class="orbCore"></div>
-      </div>
-      <div class="tapHint">TAP</div>
-    </button>
-
-    <section class="shop">
-      <div class="shopHead">
-        <div class="shopTitle">Прокачка</div>
-        <div class="shopSub">Зроби наступний клік відчутним</div>
-      </div>
-
-      <div class="cards">
-        <button class="card" id="buyPower">
-          <div class="cardTitle">Сила кліку</div>
-          <div class="cardDesc">+1 монета за тап</div>
-          <div class="cardMeta">
-            <span id="powerCost" class="cost">10</span>
-            <span class="tag">🖱️</span>
-          </div>
-        </button>
-
-        <button class="card" id="buyAuto">
-          <div class="cardTitle">Автоклік</div>
-          <div class="cardDesc">+1 / сек</div>
-          <div class="cardMeta">
-            <span id="autoCost" class="cost">25</span>
-            <span class="tag">⏱️</span>
-          </div>
-        </button>
-
-        <button class="card" id="buyCrit">
-          <div class="cardTitle">Крит-шанс</div>
-          <div class="cardDesc">рідкісні супер-тапи</div>
-          <div class="cardMeta">
-            <span id="critCost" class="cost">40</span>
-            <span class="tag">💥</span>
-          </div>
-        </button>
-      </div>
-    </section>
-  </main>
-
-  <div id="toast" class="toast"></div>
 
   <script src="game.js"></script>
 </body>
