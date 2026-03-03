@@ -21,7 +21,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Не гасити екран під час гри
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         wv = WebView(this)
@@ -32,7 +31,7 @@ class MainActivity : ComponentActivity() {
 
         wv.webViewClient = WebViewClient()
         wv.webChromeClient = WebChromeClient()
-        wv.loadUrl("file:///android_asset/index.html")
+        wv.loadUrl("https://tg-0ncg.onrender.com")
 
         setContentView(wv)
         enterImmersive()
