@@ -9,7 +9,6 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -21,8 +20,6 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
-import androidx.activity.OnBackPressedCallback
-import kotlin.math.abs
 
 class MainActivity : ComponentActivity() {
 
@@ -32,11 +29,7 @@ class MainActivity : ComponentActivity() {
     private var clickSoundId: Int = 0
     private var soundLoaded = false
 
-    private var swipeStartX = 0f
-    private var swipeStartY = 0f
-    private val swipeThreshold = 100f
-
-    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -71,11 +64,18 @@ class MainActivity : ComponentActivity() {
         s.domStorageEnabled = true
         s.mediaPlaybackRequiresUserGesture = false
 
-        // JS bridge so the page can trigger native feedback
+        // JS bridge — called only when a button/link is tapped
         wv.addJavascriptInterface(object : Any() {
             @JavascriptInterface
-            fun onTap() {
+            fun onButtonTap() {
                 runOnUiThread { triggerFeedback() }
+            }
+
+            @JavascriptInterface
+            fun goBack() {
+                runOnUiThread {
+                    if (wv.canGoBack()) wv.goBack()
+                }
             }
         }, "Android")
 
@@ -85,90 +85,96 @@ class MainActivity : ComponentActivity() {
             ): Boolean = false
 
             override fun onPageFinished(view: WebView, url: String) {
-                // Inject touchstart listener — fires on every tap in the page
-                wv.evaluateJavascript("""
-                    (function() {
-                        if (window.__androidFeedbackInjected) return;
-                        window.__androidFeedbackInjected = true;
-                        document.addEventListener('touchstart', function() {
-                            if (typeof Android !== 'undefined') Android.onTap();
-                        }, { passive: true });
-                    })();
-                """.trimIndent(), null)
+                injectScripts()
             }
         }
         wv.webChromeClient = WebChromeClient()
         wv.loadUrl("https://tg-0ncg.onrender.com")
 
-        // Swipe-right-from-left-edge → go back
-        wv.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    swipeStartX = event.x
-                    swipeStartY = event.y
-                    false
-                }
-                MotionEvent.ACTION_UP -> {
-                    val dx = event.x - swipeStartX
-                    val dy = event.y - swipeStartY
-                    // Right swipe, more horizontal than vertical, starts near left edge
-                    if (dx > swipeThreshold &&
-                        abs(dx) > abs(dy) * 1.5f &&
-                        swipeStartX < 80f &&
-                        wv.canGoBack()
-                    ) {
-                        wv.goBack()
-                        triggerFeedback()
-                        true
-                    } else false
-                }
-                else -> false
-            }
-        }
-
         setContentView(wv)
         enterImmersive()
+    }
 
-        // System back button
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (wv.canGoBack()) wv.goBack()
-                // keep app alive if no history
-            }
-        })
+    private fun injectScripts() {
+        wv.evaluateJavascript("""
+            (function() {
+                if (window.__androidInjected) return;
+                window.__androidInjected = true;
+
+                // Fire feedback only on interactive elements
+                var selector = 'button, a, input[type=button], input[type=submit], ' +
+                               '[role=button], [onclick], .btn, .button, label';
+
+                document.addEventListener('touchstart', function(e) {
+                    if (typeof Android === 'undefined') return;
+                    var el = e.target;
+                    // Walk up to 4 levels to find a button-like ancestor
+                    for (var i = 0; i < 4; i++) {
+                        if (!el) break;
+                        if (el.matches && el.matches(selector)) {
+                            Android.onButtonTap();
+                            return;
+                        }
+                        el = el.parentElement;
+                    }
+                }, { passive: true });
+
+                // Swipe right from left edge = go back
+                var startX = 0, startY = 0;
+                document.addEventListener('touchstart', function(e) {
+                    startX = e.touches[0].clientX;
+                    startY = e.touches[0].clientY;
+                }, { passive: true });
+                document.addEventListener('touchend', function(e) {
+                    var dx = e.changedTouches[0].clientX - startX;
+                    var dy = e.changedTouches[0].clientY - startY;
+                    if (dx > 80 && Math.abs(dy) < 60 && startX < 40) {
+                        if (typeof Android !== 'undefined') Android.goBack();
+                    }
+                }, { passive: true });
+            })();
+        """.trimIndent(), null)
     }
 
     private fun triggerFeedback() {
-        // Short vibration
+        // Short light vibration
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             vibrator.vibrate(
-                VibrationEffect.createOneShot(18, VibrationEffect.DEFAULT_AMPLITUDE)
+                VibrationEffect.createOneShot(12, 60) // 12ms, amplitude 60/255
             )
         } else {
             @Suppress("DEPRECATION")
-            vibrator.vibrate(18)
+            vibrator.vibrate(12)
         }
-        // Soft click sound
+        // Soft sound
         if (soundLoaded && clickSoundId != 0) {
-            soundPool.play(clickSoundId, 0.35f, 0.35f, 1, 0, 1.0f)
+            soundPool.play(clickSoundId, 0.15f, 0.15f, 1, 0, 1.0f)
         }
     }
 
-    /** Generates a soft 30ms sine-burst click and saves it as a WAV in cache. */
+    /**
+     * Soft "thud" click: low frequency (180 Hz), long fade-out, no sharp attack.
+     * Much softer than a high-freq sine burst.
+     */
     private fun generateClickSound(): Int {
         val sampleRate = 44100
-        val durationMs = 30
+        val durationMs = 60
         val numSamples = sampleRate * durationMs / 1000
-        val freq = 1200.0
+        val freq = 180.0
         val pcm = ShortArray(numSamples)
+
         for (i in 0 until numSamples) {
-            val env = if (i < numSamples * 0.1)
-                i / (numSamples * 0.1)
-            else
-                1.0 - (i - numSamples * 0.1) / (numSamples * 0.9)
-            pcm[i] = (Math.sin(2 * Math.PI * freq * i / sampleRate) * env * Short.MAX_VALUE * 0.6)
+            val t = i.toDouble() / sampleRate
+            // Smooth attack (5%) then exponential decay
+            val attack = if (i < numSamples * 0.05)
+                i / (numSamples * 0.05)
+            else 1.0
+            val decay = Math.exp(-i / (numSamples * 0.3))
+            val env = attack * decay
+            pcm[i] = (Math.sin(2 * Math.PI * freq * t) * env * Short.MAX_VALUE * 0.45)
                 .toInt().toShort()
         }
+
         val file = java.io.File(cacheDir, "click.wav")
         writeWav(file, pcm, sampleRate)
         return soundPool.load(file.absolutePath, 1)
@@ -205,6 +211,13 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         soundPool.release()
+    }
+
+    // System back button — handled in JS via goBack() bridge,
+    // but also handle hardware key as fallback
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (wv.canGoBack()) wv.goBack() else super.onBackPressed()
     }
 
     private fun enterImmersive() {
